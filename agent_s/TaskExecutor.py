@@ -89,13 +89,13 @@ class Executor:
             elif platform.system() == "Darwin":
                 current_os = 'MacOS'
         
-        self.generator_system_prompt = PROCEDURAL_MEMORY.construct_procedural_memory(
+        self.generator_system_prompt = PROCEDURAL_MEMORY.construct_procedural_memory_som(
             GroundingAgent
         ).replace("CURRENT_OS", current_os)
         self.reflection_module_system_prompt = (
             PROCEDURAL_MEMORY.REFLECTION_ON_TRAJECTORY
         )
-        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT.replace("CURRENT_OS", current_os)   
+        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT_SOM.replace("CURRENT_OS", current_os)   
         
         self.turn_count = 0
         self.planner_history = []
@@ -179,13 +179,14 @@ class Executor:
             self.rag_agent.add_system_prompt(
                 self.rag_module_system_prompt.replace(
                     "TASK_DESCRIPTION", instruction
-                ).replace("ACCESSIBLITY_TREE", current_state)
+                )
             )
             # logger.info("RAG System Message: %s", self.rag_module_system_prompt.replace(
             #     "TASK_DESCRIPTION", instruction).replace("ACCESSIBLITY_TREE", current_state))
 
             self.rag_agent.add_message(
-                "To use google search to get some useful information, first carefully analyze the accessibility tree of the current desktop UI state, then given the task instruction, formulate a question that can be used to search on the Internet for information in helping with the task execution.\nThe question should not be too general or too specific, but it should be based on the current desktop UI state (e.g., already open website or application). You should expect the google search will return you something useful based on the question. Since it is a desktop computer task, make sure to mention the corresponding task domain in the question and also mention the Ubuntu OS if you think the OS matters. Please ONLY provide the question.\nQuestion:"
+                text_content = "To use google search to get some useful information, first carefully analyze the screenshot of the current desktop UI state, then given the task instruction, formulate a question that can be used to search on the Internet for information in helping with the task execution.\nThe question should not be too general or too specific, but it should be based on the current desktop UI state (e.g., already open website or application). You should expect the google search will return you something useful based on the question. Since it is a desktop computer task, make sure to mention the corresponding task domain in the question and also mention the Ubuntu OS if you think the OS matters. Please ONLY provide the question.\nQuestion:",
+                image_content = current_state
             )
             search_query = call_llm_safe(self.rag_agent)
             search_query = search_query.strip().replace('"', "")
@@ -287,7 +288,7 @@ class Executor:
         # Provide the top_app to the Grounding Agent to remove all other applications from the tree. At t=0, top_app is None
         agent = self.grounding_agent
 
-        self.active_apps = agent.get_current_applications(obs)
+        # self.active_apps = agent.get_current_applications(obs)
 
         # Get RAG knowledge, only update system message at t=0
         if self.turn_count == 0:
@@ -347,7 +348,8 @@ class Executor:
             logger.info("REFLECTION: %s", reflection)
 
         # Plan Generation
-        tree_input = agent.linearize_and_annotate_tree(obs)
+        som_input, caption = agent.parse_image(obs['screenshot'])
+        logger.info(f"The Caption is:\n{caption}")
 
         self.remove_ids_from_history()
 
@@ -357,9 +359,9 @@ class Executor:
                 if reflection
                 else ""
             )
-            + f"Accessibility Tree: {tree_input}\n"
+            + f"Description of icon/text box:: {caption}\n"
             f"Text Buffer = [{','.join(agent.notes)}]. "
-            f"The current open applications are {agent.get_current_applications(obs)} and the active app is {agent.top_app}. "
+            f"The current open applications are {agent.get_current_applications(obs)}. "
         )
 
         # Only provide subinfo in the very first message to avoid over influence and redundancy
@@ -367,10 +369,10 @@ class Executor:
             generator_message += f"Remeber only complete the subtask: {subtask}\n"
             generator_message += f"You can use this extra information for completing the current subtask: {subtask_info}.\n"
 
-        logger.info("GENERATOR MESSAGE: %s", generator_message)
+        # logger.info("GENERATOR MESSAGE: %s", generator_message)
 
         self.generator_agent.add_message(
-            generator_message, image_content=obs["screenshot"]
+            generator_message, image_content=som_input
         )
 
         plan = call_llm_safe(self.generator_agent)
@@ -406,7 +408,8 @@ class Executor:
             "current_subtask": subtask,
             "current_subtask_info": subtask_info,
             "executor_plan": plan,
-            "linearized_accessibility_tree": tree_input,
+            # "linearized_accessibility_tree": tree_input,
+            "som": som_input,
             "plan_code": plan_code,
             "reflection": reflection,
             "num_input_tokens_executor": input_tokens,
@@ -415,7 +418,7 @@ class Executor:
         }
         self.turn_count += 1
 
-        self.tree_inputs.append(tree_input)
+        # self.tree_inputs.append(tree_input)
         self.screenshot_inputs.append(obs["screenshot"])
 
         return executor_info, [exec_code]

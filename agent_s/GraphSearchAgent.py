@@ -1,10 +1,11 @@
 from agent_s.osworld.GroundingAgent import GroundingAgent as OSWorldGroundingAgent
 from agent_s.windowsagentarena.GroundingAgent import GroundingAgent as WindowsAgentArenaGroundingAgent
+from agent_s.osworld.OmniParserGrounding import GroundingAgent as OmniParserGroundingAgent
 
 import platform
 import time 
 
-import pyautogui
+# import pyautogui
 import io 
 import json 
 
@@ -73,7 +74,8 @@ class GraphSearchAgent:
     def reset(self):
         # Initialize Agents
         if self.experiment_type == 'osworld':
-            self.grounding_agent = OSWorldGroundingAgent(vm_version=self.vm_version)
+            self.grounding_agent = OmniParserGroundingAgent()
+            # self.grounding_agent = OSWorldGroundingAgent(vm_version=self.vm_version)
         elif self.experiment_type == 'windowsagentarena':
             self.grounding_agent = WindowsAgentArenaGroundingAgent(vm_version='windows')
         elif self.experiment_type == 'openaci':
@@ -250,55 +252,55 @@ class GraphSearchAgent:
 
         return subtask_traj
     
-    def run(self, instruction: str):
-        obs = {}
-        traj = 'Task:\n' + instruction
-        subtask_traj = ""
-        for _ in range(15):
-            obs['accessibility_tree'] = OpenACIUIElement.systemWideElement()
+    # def run(self, instruction: str):
+    #     obs = {}
+    #     traj = 'Task:\n' + instruction
+    #     subtask_traj = ""
+    #     for _ in range(15):
+    #         obs['accessibility_tree'] = OpenACIUIElement.systemWideElement()
                 
-            # Get screen shot using pyautogui.
-            # Take a screenshot
-            screenshot = pyautogui.screenshot()
+    #         # Get screen shot using pyautogui.
+    #         # Take a screenshot
+    #         screenshot = pyautogui.screenshot()
 
-            # Save the screenshot to a BytesIO object
-            buffered = io.BytesIO()
-            screenshot.save(buffered, format="PNG")
+    #         # Save the screenshot to a BytesIO object
+    #         buffered = io.BytesIO()
+    #         screenshot.save(buffered, format="PNG")
 
-            # Get the byte value of the screenshot
-            screenshot_bytes = buffered.getvalue()
-            # Convert to base64 string.
-            obs['screenshot'] = screenshot_bytes 
+    #         # Get the byte value of the screenshot
+    #         screenshot_bytes = buffered.getvalue()
+    #         # Convert to base64 string.
+    #         obs['screenshot'] = screenshot_bytes 
 
-            info, code = self.predict(instruction=instruction, obs=obs)
+    #         info, code = self.predict(instruction=instruction, obs=obs)
 
-            if 'done' in code[0].lower() or 'fail' in code[0].lower():
-                if platform.system() == 'Darwin':
-                    os.system(f'osascript -e \'display dialog "Task Completed" with title "OpenACI Agent" buttons "OK" default button "OK"\'')
-                elif platform.system() == 'Linux':
-                    os.system(f'zenity --info --title="OpenACI Agent" --text="Task Completed" --width=200 --height=100')
+    #         if 'done' in code[0].lower() or 'fail' in code[0].lower():
+    #             if platform.system() == 'Darwin':
+    #                 os.system(f'osascript -e \'display dialog "Task Completed" with title "OpenACI Agent" buttons "OK" default button "OK"\'')
+    #             elif platform.system() == 'Linux':
+    #                 os.system(f'zenity --info --title="OpenACI Agent" --text="Task Completed" --width=200 --height=100')
                 
-                self.update_narrative_memory(traj)
-                break 
+    #             self.update_narrative_memory(traj)
+    #             break 
         
-            if _ == 3:
-                self.update_narrative_memory(traj)
+    #         if _ == 3:
+    #             self.update_narrative_memory(traj)
             
-            if 'next' in code[0].lower():
-                continue
+    #         if 'next' in code[0].lower():
+    #             continue
 
-            if 'wait' in code[0].lower():
-                time.sleep(5)
-                continue
+    #         if 'wait' in code[0].lower():
+    #             time.sleep(5)
+    #             continue
 
-            else:
-                time.sleep(1.)
-                print("EXECUTING CODE:", code[0])
-                exec(code[0])
+    #         else:
+    #             time.sleep(1.)
+    #             print("EXECUTING CODE:", code[0])
+    #             exec(code[0])
                 
-                time.sleep(1.)
+    #             time.sleep(1.)
                 
-                # Update task and subtask trajectories and optionally the episodic memory
-                traj += '\n\nReflection:\n' + str(info['reflection']) + '\n\n----------------------\n\nPlan:\n' + info['executor_plan']
-                subtask_traj = self.update_episodic_memory(info, subtask_traj)
+    #             # Update task and subtask trajectories and optionally the episodic memory
+    #             traj += '\n\nReflection:\n' + str(info['reflection']) + '\n\n----------------------\n\nPlan:\n' + info['executor_plan']
+    #             subtask_traj = self.update_episodic_memory(info, subtask_traj)
                 

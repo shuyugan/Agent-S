@@ -35,12 +35,12 @@ class Planner:
     ):
         # TODO: move the prompt to Procedural Memory
         self.generator_agent = LMMAgent(
-            engine_params, system_prompt=PROCEDURAL_MEMORY.DAG_PLANNER_BASE
+            engine_params, system_prompt=PROCEDURAL_MEMORY.DAG_PLANNER_BASE_SOM
         )
         self.dag_translator_agent = LMMAgent(
             engine_params, system_prompt=PROCEDURAL_MEMORY.DAG_TRANSLATOR_PROMPT
         )
-        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT
+        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT_SOM
         self.lifelong_learning_agent = LMMAgent(engine_params)
         self.lifelong_learning_system_prompt = (
             PROCEDURAL_MEMORY.LIFELONG_LEARNING_REFLECTION
@@ -95,21 +95,25 @@ class Planner:
         except:
             formulate_query = {}
         
-        print('query', formulate_query)
+        # print('query', formulate_query)
 
         if instruction in formulate_query.keys() and formulate_query[instruction]:
             search_query = formulate_query[instruction]
+            # logger.info("Yes")
+            # print("Yes")
         else:
+            # logger.info("NO")
+            # print("No")
             self.rag_agent.add_system_prompt(
                 self.rag_module_system_prompt.replace(
                     "TASK_DESCRIPTION", instruction
-                ).replace("ACCESSIBLITY_TREE", current_state)
+                )
             )
             logger.info(
                 "RAG System Message: %s",
                 self.rag_module_system_prompt.replace(
                     "TASK_DESCRIPTION", instruction
-                ).replace("ACCESSIBLITY_TREE", current_state),
+                )
             )
             if self.experiment_type == "osworld":
                 current_os = 'Ubuntu'
@@ -124,7 +128,8 @@ class Planner:
                     current_os = 'MacOS'
             print(current_os)
             self.rag_agent.add_message(
-                f"To use google search to get some useful information, first carefully analyze the accessibility tree of the current desktop UI state, then given the task instruction, formulate a question that can be used to search on the Internet for information in helping with the task execution.\nThe question should not be too general or too specific, but it should be based on the current desktop UI state (e.g., already open website or application). You should expect the google search will return you something useful based on the question. Since it is a desktop computer task, make sure to mention the corresponding task domain in the question and also mention the {current_os} OS if you think the OS matters. Please ONLY provide the question.\nQuestion:"
+                text_content = f"To use google search to get some useful information, first carefully analyze the screenshot of the current desktop UI state, then given the task instruction, formulate a question that can be used to search on the Internet for information in helping with the task execution.\nThe question should not be too general or too specific, but it should be based on the current desktop UI state (e.g., already open website or application). You should expect the google search will return you something useful based on the question. Since it is a desktop computer task, make sure to mention the corresponding task domain in the question and also mention the {current_os} OS if you think the OS matters. Please ONLY provide the question.\nQuestion:",
+                image_content = current_state
             )
             search_query = call_llm_safe(self.rag_agent)
             assert type(search_query) == str
@@ -310,18 +315,17 @@ class Planner:
     ) -> Tuple[Dict, str]:
         agent = self.grounding_agent
 
-        self.active_apps = agent.get_current_applications(initial_observation)
+        # self.active_apps = agent.get_current_applications(initial_observation)
 
         # Get RAG knowledge, only update system message at t=0
         # TODO: at each step after the failed plan run a new rag search - rag search should include feedback from the failed plan
         # Include all apps during planning stage
-        tree_input = agent.linearize_and_annotate_tree(
-            initial_observation, show_all=False
-        )
+        som_input, caption = agent.parse_image(initial_observation['screenshot'])
         search_query = ""
+        # print(caption)
         if self.turn_count == 0:
             search_query, retrieved_knowledge = self.retrieve_knowledge(
-                instruction, current_state=tree_input, engine=self.search_engine
+                instruction, current_state=som_input, engine=self.search_engine
             )
             if self.multi_round:
                 most_similar_task, retrieved_experience = (
@@ -347,7 +351,7 @@ class Planner:
             )
 
         generator_message = (
-            f"Accessibility Tree: {tree_input}\n"
+            f"Description of icon/text box: {caption}\n"
             f"The clipboard contains: {agent.clipboard}."
             f"The current open applications are {agent.get_current_applications(initial_observation)}"
             + (
@@ -358,7 +362,7 @@ class Planner:
         )
 
         self.generator_agent.add_message(
-            generator_message, image_content=initial_observation["screenshot"]
+            generator_message, image_content=som_input
         )
 
         logger.info("GENERATING HIGH LEVEL PLAN")
