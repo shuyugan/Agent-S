@@ -13,7 +13,7 @@ from agent_s import osworld_utils
 from agent_s.query_perplexica import query_to_perplexica
 import re
 import logging
-
+from PIL import Image
 from agent_s.osworld_utils import Node, calculate_tokens, call_llm_safe
 
 logger = logging.getLogger("desktopenv.agent")
@@ -61,6 +61,7 @@ class Executor:
         self.search_engine = search_engine
         self.use_subtask_experience = use_subtask_experience
         self.experiment_type = experiment_type
+        self.temp_img_dir = 'temp_img_sonnet'
         self.reset()
 
     def flush_messages(self, n):
@@ -75,7 +76,7 @@ class Executor:
         generator_params = {
             "engine_type": "anthropic",
             "model": "claude-3-5-sonnet-20241022",
-            "api_key": os.getenv('CLAUDE_API')
+            "api_key": os.getenv('Claude_API')
         }
         self.generator_agent = LMMAgent(generator_params)
         self.reflection_agent = LMMAgent(self.engine_params)
@@ -94,13 +95,14 @@ class Executor:
             elif platform.system() == "Darwin":
                 current_os = 'MacOS'
         
+        os.makedirs(self.temp_img_dir, exist_ok=True)
         self.generator_system_prompt = PROCEDURAL_MEMORY.construct_procedural_memory_sonnet(
             GroundingAgent
         ).replace("CURRENT_OS", current_os)
         self.reflection_module_system_prompt = (
             PROCEDURAL_MEMORY.REFLECTION_ON_TRAJECTORY
         )
-        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT.replace("CURRENT_OS", current_os)   
+        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT_SONNET.replace("CURRENT_OS", current_os)   
         
         self.turn_count = 0
         self.planner_history = []
@@ -109,6 +111,22 @@ class Executor:
         self.tree_inputs = []
         self.screenshot_inputs = []
 
+    def resize_screenshot(self, screenshot):
+        path = os.path.join(self.temp_img_dir, f"step_{self.turn_count}.png")
+        
+        with open(path,"wb") as _f:
+            _f.write(screenshot)
+        
+        img = Image.open(path)
+        img_scale = img.resize((1366, 768), Image.Resampling.LANCZOS)
+        scale_path = os.path.join(self.temp_img_dir, f"step_{self.turn_count}_scaled.png")  
+        img_scale.save(scale_path)
+
+        with open(scale_path, "rb") as image_file:
+            scaled_img = image_file.read()
+
+        return scaled_img
+    
     def retrieve_similar_subtask_experience(self, instruction):
 
         try:
@@ -374,8 +392,10 @@ class Executor:
 
         logger.info("GENERATOR MESSAGE: %s", generator_message)
 
+        scaled_screenshot = self.resize_screenshot(obs["screenshot"])
+        
         self.generator_agent.add_message(
-            generator_message, image_content=obs["screenshot"]
+            generator_message, image_content=scaled_screenshot
         )
 
         plan = call_llm_safe(self.generator_agent)

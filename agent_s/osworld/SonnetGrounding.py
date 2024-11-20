@@ -15,6 +15,8 @@ class GroundingAgent:
     def __init__(self):
         
         self.index_out_of_range_flag = False
+        self.x_scale = 1920 / 1366
+        self.y_scale = 1080 / 768
         # self.top_app = None
         self.app_setup_code = f"""import subprocess;
 import difflib;
@@ -54,7 +56,16 @@ subprocess.run(['wmctrl', '-ir', window_id, '-b', 'add,maximized_vert,maximized_
             ):
                 apps.append(node.attrib.get("name", "").replace("\\", ""))
         return apps
+    def resize_coordinates(self, coordinates: List):
+        x, y = coordinates
 
+        x_new = int(x * self.x_scale)
+        y_new = int(y * self.y_scale)
+
+        logger.info(f"The original coordinates is {coordinates}, the scaled one is {[x_new, y_new]}")
+
+        return[x_new, y_new]
+     
     @agent_action
     def click(
         self,
@@ -65,12 +76,12 @@ subprocess.run(['wmctrl', '-ir', window_id, '-b', 'add,maximized_vert,maximized_
     ):
         """Click on the element
         Args:
-            element_coordinates:List, coordinates of the element to click on
+            element_coordinates:List: [x, y], coordinates of the element to click on
             num_clicks:int, number of times to click the element
             button_type:str, which mouse button to press can be "left", "middle", or "right"
             hold_keys:List, list of keys to hold while clicking
         """
-        x, y = element_coordinates
+        x, y = self.resize_coordinates(element_coordinates)
         command = "import pyautogui; "
 
         # TODO: specified duration?
@@ -100,7 +111,7 @@ subprocess.run(['wmctrl', '-ir', window_id, '-b', 'add,maximized_vert,maximized_
     ):
         """Type text into the element
         Args:
-            element_coordinates:List, coordiates of the element to type into. If not provided, typing will start at the current cursor location.
+            element_coordinates:**List: [x, y]**, coordiates of the element to type into. If not provided, typing will start at the current cursor location.
             text:str, the text to type
             overwrite:bool, Assign it to True if the text should overwrite the existing text, otherwise assign it to False. Using this argument clears all text in an element.
             enter:bool, Assign it to True if the enter key should be pressed after typing the text, otherwise assign it to False.
@@ -110,7 +121,7 @@ subprocess.run(['wmctrl', '-ir', window_id, '-b', 'add,maximized_vert,maximized_
             # If a node is found, retrieve its coordinates and size
             # Start typing at the center of the element
 
-            x, y = element_coordinates
+            x, y = self.resize_coordinates(element_coordinates)
 
             command = "import pyautogui; "
             command += f"pyautogui.click({x}, {y}); "
@@ -153,12 +164,12 @@ subprocess.run(['wmctrl', '-ir', window_id, '-b', 'add,maximized_vert,maximized_
     def drag_and_drop(self, drag_from_coordinates: List, drop_on_coordinates: List, hold_keys: List = []):
         """Drag element1 and drop it on element2.
         Args:
-            drag_from_coordinates:List, coordinates of element to drag
-            drop_on_coordinates:List, coordinates of element to drop on
+            drag_from_coordinates:List: [x, y], coordinates of element to drag
+            drop_on_coordinates:List: [x, y], coordinates of element to drop on
             hold_keys:List list of keys to hold while dragging
         """
-        x1, y1 = drag_from_coordinates
-        x2, y2 = drop_on_coordinates
+        x1, y1 = self.resize_coordinates(drag_from_coordinates)
+        x2, y2 = self.resize_coordinates(drop_on_coordinates)
 
         command = "import pyautogui; "
 
@@ -178,11 +189,11 @@ subprocess.run(['wmctrl', '-ir', window_id, '-b', 'add,maximized_vert,maximized_
     def scroll(self, element_coordinates: List, clicks: int):
         """Scroll the element in the specified direction
         Args:
-            element_coordinates:List, coordinates of the element to scroll in
+            element_coordinates:List: [x, y], coordinates of the element to scroll in
             clicks:int, the number of clicks to scroll can be positive (up) or negative (down).
         """
 
-        x, y = element_coordinates
+        x, y = self.resize_coordinates(element_coordinates)
 
         return (
             f"import pyautogui; pyautogui.moveTo({x}, {y}); pyautogui.scroll({clicks})"

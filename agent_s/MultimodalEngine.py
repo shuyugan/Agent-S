@@ -113,14 +113,42 @@ class LMMEngineAnthropic(LMMEngine):
     @backoff.on_exception(backoff.expo, (APIConnectionError, APIError, RateLimitError), max_time=60)
     def generate(self, messages, temperature=0., max_new_tokens=None, **kwargs):
         '''Generate the next message based on previous messages'''
-        return self.llm_client.messages.create(
-            system=messages[0]['content'][0]['text'],
-            model=self.model,
-            messages=messages[1:],
-            max_tokens=max_new_tokens if max_new_tokens else 4096,
-            temperature=temperature,
-            **kwargs,
-        ).content[0].text
+        if self.model == "claude-3-5-sonnet-20241022":
+            return self.llm_client.beta.messages.create(
+                system=messages[0]['content'][0]['text'],
+                model=self.model,
+                # tools=[
+                #     {
+                #     "type": "computer_20241022",
+                #     "name": "computer",
+                #     "display_width_px": 1920,
+                #     "display_height_px": 1080,
+                #     "display_number": 1,
+                #     },
+                #     {
+                #     "type": "text_editor_20241022",
+                #     "name": "str_replace_editor"
+                #     },
+                #     {
+                #     "type": "bash_20241022",
+                #     "name": "bash"
+                #     }
+                # ],
+                max_tokens=max_new_tokens if max_new_tokens else 4096,
+                messages=messages[1:],
+                temperature=temperature,
+                betas=["computer-use-2024-10-22"],
+                **kwargs,
+            ).content[0].text
+        else:
+            return self.llm_client.messages.create(
+                system=messages[0]['content'][0]['text'],
+                model=self.model,
+                messages=messages[1:],
+                max_tokens=max_new_tokens if max_new_tokens else 4096,
+                temperature=temperature,
+                **kwargs,
+            ).content[0].text
 
 class OpenAIEmbeddingEngine(LMMEngine):
     def __init__(

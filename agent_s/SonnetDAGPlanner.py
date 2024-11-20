@@ -40,7 +40,7 @@ class Planner:
         self.dag_translator_agent = LMMAgent(
             engine_params, system_prompt=PROCEDURAL_MEMORY.DAG_TRANSLATOR_PROMPT
         )
-        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT
+        self.rag_module_system_prompt = PROCEDURAL_MEMORY.RAG_AGENT_SONNET
         self.lifelong_learning_agent = LMMAgent(engine_params)
         self.lifelong_learning_system_prompt = (
             PROCEDURAL_MEMORY.LIFELONG_LEARNING_REFLECTION
